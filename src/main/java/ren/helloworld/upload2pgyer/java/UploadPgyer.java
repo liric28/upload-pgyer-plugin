@@ -106,10 +106,14 @@ public class UploadPgyer {
 	}
 
 	/**
-	 * @param uploadBean
-	 * @param listener
+	 * upload 2 pgyer
+	 *
+	 * @param printHeader printHeader
+	 * @param uploadBean  uploadBean
+	 * @param listener    listener
+	 * @return pgyer bean
 	 */
-	public static PgyerBean upload2Pgyer(boolean printHeader, UploadBean uploadBean, final Message listener) {
+	public static PgyerBean upload2Pgyer(final boolean printHeader, UploadBean uploadBean, final Message listener) {
 		// print header info
 		if (printHeader) printHeaderInfo(listener);
 
@@ -131,6 +135,10 @@ public class UploadPgyer {
 		FileInputStream fis = null;
 		try {
 			printMessage(listener, true, "upload：" + uploadFile.getName() + " to " + UPLOAD_URL);
+			printMessage(listener, true, "upload file size: " + convertFileSize(uploadFile.length()));
+
+			// try whit jsoup library
+			printMessage(listener, true, "upload with jsoup");
 			fis = new FileInputStream(uploadFile);
 			Document document = Jsoup.connect(UPLOAD_URL)
 					.ignoreContentType(true)
@@ -142,6 +150,10 @@ public class UploadPgyer {
 					.data("file", uploadFile.getName(), fis)
 					.post();
 			result = document.body().text();
+
+			if (result != null && result.contains("\"data\":[]")) {
+				result = result.replace("\"data\":[]", "\"data\":{}");
+			}
 
 			PgyerBean pgyerBean = new Gson().fromJson(result, new TypeToken<PgyerBean>() {
 			}.getType());
@@ -155,6 +167,7 @@ public class UploadPgyer {
 
 			pgyerBean.getData().setAppPgyerURL("https://www.pgyer.com/" + pgyerBean.getData().getAppShortcutUrl());
 			pgyerBean.getData().setAppBuildURL("https://www.pgyer.com/" + pgyerBean.getData().getAppKey());
+			pgyerBean.getData().setAppIcon("https://www.pgyer.com/image/view/app_icons/" + pgyerBean.getData().getAppIcon());
 
 			printMessage(listener, true, "upload to pgyer success!\n");
 			printResultInfo(pgyerBean, listener);
@@ -162,18 +175,17 @@ public class UploadPgyer {
 			downloadQrcode(uploadBean, pgyerBean, listener);
 
 			return pgyerBean;
-		} catch (Exception e) {
+		} catch (IOException e) {
 			listener.message(true, "pgyer result: " + result);
 			listener.message(true, "ERROR: " + e.getMessage() + "\n");
 			return null;
 		} finally {
-			if (fis != null) {
+			if (fis != null)
 				try {
 					fis.close();
 				} catch (IOException e) {
 					e.printStackTrace();
 				}
-			}
 		}
 	}
 
@@ -421,6 +433,29 @@ public class UploadPgyer {
 			dest = m.replaceAll("");
 		}
 		return dest;
+	}
+
+	/**
+	 * size convert
+	 *
+	 * @param size file size
+	 * @return convert file size
+	 */
+	public static String convertFileSize(long size) {
+		long kb = 1024;
+		long mb = kb * 1024;
+		long gb = mb * 1024;
+
+		if (size >= gb) {
+			return String.format("%.1f GB", (float) size / gb);
+		} else if (size >= mb) {
+			float f = (float) size / mb;
+			return String.format(f > 100 ? "%.0f MB" : "%.1f MB", f);
+		} else if (size >= kb) {
+			float f = (float) size / kb;
+			return String.format(f > 100 ? "%.0f KB" : "%.1f KB", f);
+		} else
+			return String.format("%d B", size);
 	}
 
 	/**
